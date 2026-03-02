@@ -1646,3 +1646,4 @@ WebP livré aux navigateurs qui le supportent (-30%), JPEG en fallback universel
 ---
 
 **🎓 Fin du cours — Serveur Haute Performance**
+# Watermarks
