@@ -1,0 +1,94 @@
+secrets:
+  minio_user:
+    file: ./secrets/minio_user.txt
+  minio_password:
+    file: ./secrets/minio_password.txt
+
+services:
+  redis:
+    image: redis:8.6.1-alpine3.23
+    ports:
+      - "6379:6379"
+    # redis-server --save "" --appendonly no
+    # désactive la persistance sur disque → Redis utilisé uniquement comme cache RAM
+    command: redis-server --save "" --appendonly no
+
+  optimizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        SERVICE_DIR: optimizer
+        CMD_PATH: /usr/local/bin/optimizer
+    environment:
+      - APP_ENV=prod
+    volumes:
+      # monté en permanence — en prod le binaire tourne depuis /usr/local/bin/, sans impact
+      - ./optimizer:/usr/src/optimizer
+    ports:
+      - "3001:3001"
+
+  rabbitmq:
+    image: rabbitmq:4.2.4-alpine
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    volumes:
+      # rabbitmq.conf est dans secrets/ (gitignorés) — contient default_user et default_pass
+      - ./secrets/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        SERVICE_DIR: api
+        CMD_PATH: /usr/local/bin/api
+    volumes:
+      # monté en permanence — en prod le binaire tourne depuis /usr/local/bin/, sans impact
+      - ./api:/usr/src/api
+    ports:
+      - "4000:4000"
+    environment:
+      - APP_ENV=prod
+      - OPTIMIZER_URL=http://optimizer:3001
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+    secrets:
+      - minio_user
+      - minio_password
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      # _FILE : MinIO lit le contenu du fichier monté par Docker secrets
+      - MINIO_ROOT_USER_FILE=/run/secrets/minio_user
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_password
+    secrets:
+      - minio_user
+      - minio_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  front:
+    build:
+      context: ./front
+      target: prod
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  minio_data:
