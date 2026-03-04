@@ -8,4 +8,7 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
+  test: {
+    environment: 'node', // tests purement JS, pas de DOM requis
+  },
 })

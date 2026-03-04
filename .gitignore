@@ -1,0 +1,8 @@
+node_modules/
+api/api
+optimizer/optimizer
+optimizer/images/
+*.exe
+.env
+.claude
+secrets/
