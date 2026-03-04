@@ -1,19 +1,25 @@
 name: CD
 
-# Se déclenche quand le CI passe sur main (prod) ou devlop (staging)
 on:
+  # devlop → build les images Docker après CI vert
   workflow_run:
     workflows: [CI]
-    branches: [main, devlop]
+    branches: [devlop]
     types: [completed]
 
+  # main → retag les images existantes + deploy (pas de rebuild)
+  push:
+    branches: [main]
+
 jobs:
-  # ── Build & push des images Docker vers GHCR ─────────────────
-  docker:
-    name: Build & push Docker images
+  # ── Build & push sur devlop ───────────────────────────────────
+  # Construit les images une seule fois depuis devlop, taguées :devlop + :sha
+  build:
+    name: Build & push — ${{ matrix.service }}
     runs-on: ubuntu-latest
-    # N'exécute le deploy que si le CI est vert
-    if: github.event.workflow_run.conclusion == 'success'
+    if: |
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success'
 
     permissions:
       contents: read
@@ -22,7 +28,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # Service API — Dockerfile racine, target prod
           - service: api
             context: .
             dockerfile: Dockerfile
@@ -30,7 +35,6 @@ jobs:
               SERVICE_DIR=api
               CMD_PATH=/usr/local/bin/api
 
-          # Service Optimizer — Dockerfile racine, target prod
           - service: optimizer
             context: .
             dockerfile: Dockerfile
@@ -38,52 +42,30 @@ jobs:
               SERVICE_DIR=optimizer
               CMD_PATH=/usr/local/bin/optimizer
 
-          # Front — Dockerfile dédié dans front/
           - service: front
             context: ./front
             dockerfile: front/Dockerfile
             build-args: ""
 
     steps:
-      # Checkout sur le commit exact qui a déclenché le CI
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      # Connexion au GitHub Container Registry
-      - name: Login to GHCR
+      - name: Login GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # main → tag "latest" | devlop → tag "devlop"
-      - name: Compute stable tag
-        id: tag
-        run: |
-          BRANCH="${{ github.event.workflow_run.head_branch }}"
-          SHA="${{ github.event.workflow_run.head_sha }}"
-          if [ "$BRANCH" = "main" ]; then
-            echo "stable=latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "stable=$BRANCH" >> "$GITHUB_OUTPUT"
-          fi
-          echo "sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - name: SHA court
+        id: sha
+        run: echo "value=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
 
-      # Génère les tags (<stable> + sha court)
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/watermark-${{ matrix.service }}
-          tags: |
-            type=raw,value=${{ steps.tag.outputs.stable }}
-            type=raw,value=${{ steps.tag.outputs.sha }}
-
-      # Build multi-plateforme et push
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build & push ${{ matrix.service }}
         uses: docker/build-push-action@v6
@@ -93,22 +75,54 @@ jobs:
           target: prod
           build-args: ${{ matrix.build-args }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/watermark-${{ matrix.service }}:devlop
+            ghcr.io/${{ github.repository_owner }}/watermark-${{ matrix.service }}:${{ steps.sha.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Déploiement VPS (main uniquement) ────────────────────────
+  # ── Promote devlop → latest sur main ─────────────────────────
+  # Retague les images existantes :devlop en :latest — pas de rebuild
+  promote:
+    name: Promote :devlop → :latest
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Copie le manifest :devlop vers :latest et :sha sans reconstruire l'image
+      - name: Retag images
+        run: |
+          SHA="${GITHUB_SHA:0:7}"
+          for service in api optimizer front; do
+            IMAGE="ghcr.io/${{ github.repository_owner }}/watermark-${service}"
+            docker buildx imagetools create \
+              -t "${IMAGE}:latest" \
+              -t "${IMAGE}:${SHA}" \
+              "${IMAGE}:devlop"
+          done
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+
+  # ── Deploy VPS ────────────────────────────────────────────────
   deploy:
     name: Deploy sur VPS
     runs-on: ubuntu-latest
-    needs: docker
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+    needs: promote
 
     steps:
-      # Vérifie que la connexion SSH fonctionne avant de déployer
       - name: SSH → test connexion
         uses: appleboy/ssh-action@v1
         with:
