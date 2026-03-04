@@ -141,7 +141,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/GitHub/Watermarks
+            cd ~/Watermarks
 
             # Les credentials GHCR sont stockés dans ~/.docker/config.json
             # (docker login ghcr.io fait une seule fois manuellement sur le VPS)
