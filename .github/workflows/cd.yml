@@ -1,10 +1,10 @@
 name: CD
 
-# Se déclenche quand le CI passe sur main (prod) ou develop (staging)
+# Se déclenche quand le CI passe sur main (prod) ou devlop (staging)
 on:
   workflow_run:
     workflows: [CI]
-    branches: [main, develop]
+    branches: [main, devlop]
     types: [completed]
 
 jobs:
@@ -58,7 +58,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # main → tag "latest" | develop → tag "develop"
+      # main → tag "latest" | devlop → tag "devlop"
       - name: Compute stable tag
         id: tag
         run: |
