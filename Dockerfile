@@ -10,7 +10,7 @@ COPY ${SERVICE_DIR}/go.mod ${SERVICE_DIR}/go.sum ./
 RUN go mod download
 COPY ${SERVICE_DIR}/ .
 
-RUN CGO_ENABLED=0 go build -o /usr/local/bin/service .
+RUN CGO_ENABLED=0 go build -o /usr/local/bin ${CMD_PATH}
 
 # ---- Prod (stage final) ----
 FROM scratch AS prod

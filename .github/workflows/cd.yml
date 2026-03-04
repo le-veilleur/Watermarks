@@ -1,0 +1,99 @@
+name: CD
+
+# Se déclenche quand le CI passe sur main (prod) ou devlop (staging)
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main, devlop]
+    types: [completed]
+
+jobs:
+  # ── Build & push des images Docker vers GHCR ─────────────────
+  docker:
+    name: Build & push Docker images
+    runs-on: ubuntu-latest
+    # N'exécute le deploy que si le CI est vert
+    if: github.event.workflow_run.conclusion == 'success'
+
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          # Service API — Dockerfile racine, target prod
+          - service: api
+            context: .
+            dockerfile: Dockerfile
+            build-args: |
+              SERVICE_DIR=api
+              CMD_PATH=/usr/local/bin/api
+
+          # Service Optimizer — Dockerfile racine, target prod
+          - service: optimizer
+            context: .
+            dockerfile: Dockerfile
+            build-args: |
+              SERVICE_DIR=optimizer
+              CMD_PATH=/usr/local/bin/optimizer
+
+          # Front — Dockerfile dédié dans front/
+          - service: front
+            context: ./front
+            dockerfile: front/Dockerfile
+            build-args: ""
+
+    steps:
+      # Checkout sur le commit exact qui a déclenché le CI
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # Connexion au GitHub Container Registry
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # main → tag "latest" | devlop → tag "devlop"
+      - name: Compute stable tag
+        id: tag
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          if [ "$BRANCH" = "main" ]; then
+            echo "stable=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "stable=$BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      # Génère les tags (<stable> + sha court)
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/watermark-${{ matrix.service }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.stable }}
+            type=raw,value=${{ steps.tag.outputs.sha }}
+
+      # Build multi-plateforme et push
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: prod
+          build-args: ${{ matrix.build-args }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
