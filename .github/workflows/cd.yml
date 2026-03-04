@@ -112,9 +112,9 @@ jobs:
       - name: SSH → test connexion
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             echo "✅ SSH OK — $(whoami)@$(hostname)"
             docker --version
@@ -122,20 +122,15 @@ jobs:
 
       - name: SSH → pull & restart
         uses: appleboy/ssh-action@v1
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          GHCR_USER: ${{ secrets.SSH_USER }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /home/debian/GitHub/Watermarks
 
-            # Connexion GHCR depuis le serveur pour puller les nouvelles images
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-
+            # Les credentials GHCR sont stockés dans ~/.docker/config.json
+            # (docker login ghcr.io fait une seule fois manuellement sur le VPS)
             docker compose pull
             docker compose up -d --remove-orphans
 
