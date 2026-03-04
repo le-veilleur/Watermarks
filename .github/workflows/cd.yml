@@ -108,17 +108,33 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
 
     steps:
-      - name: SSH → pull & restart
+      # Vérifie que la connexion SSH fonctionne avant de déployer
+      - name: SSH → test connexion
         uses: appleboy/ssh-action@v1
         with:
-          username: ${{ secrets.SSH_USER }}
           host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "✅ SSH OK — $(whoami)@$(hostname)"
+            docker --version
+            docker compose version
+
+      - name: SSH → pull & restart
+        uses: appleboy/ssh-action@v1
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USER: ${{ secrets.SSH_USER }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GHCR_TOKEN,GHCR_USER
           script: |
             cd /home/debian/GitHub/Watermarks
 
             # Connexion GHCR depuis le serveur pour puller les nouvelles images
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.SSH_USER }} --password-stdin
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             docker compose pull
             docker compose up -d --remove-orphans
