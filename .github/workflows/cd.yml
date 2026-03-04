@@ -108,23 +108,11 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
 
     steps:
-      # Vérifie que la connexion SSH fonctionne avant de déployer
-      - name: SSH → test connexion
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            echo "✅ SSH OK — connecté en tant que $(whoami) sur $(hostname)"
-            docker --version
-            docker compose version
-
       - name: SSH → pull & restart
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
+          host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/debian/GitHub/Watermarks
