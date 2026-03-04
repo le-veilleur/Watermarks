@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ── API (Go) ──────────────────────────────────────────────────
+  api:
+    name: API — vet & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      - run: go vet ./...
+      - run: go test ./...
+
+  # ── Optimizer (Go) ───────────────────────────────────────────
+  optimizer:
+    name: Optimizer — vet & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: optimizer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: optimizer/go.mod
+          cache-dependency-path: optimizer/go.sum
+
+      - run: go vet ./...
+      - run: go test ./...
+
+  # ── Front (Node / Vite) ──────────────────────────────────────
+  front:
+    name: Front — lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
