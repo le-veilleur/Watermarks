@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  # CI tourne sur devlop — inutile de refaire sur main puisque le merge vient de devlop
   push:
-    branches: [main, devlop]
+    branches: [devlop]
+  # Les PR vers main ou devlop déclenchent quand même le CI
   pull_request:
     branches: [main, devlop]
 
