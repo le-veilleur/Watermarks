@@ -45,7 +45,8 @@ jobs:
           - service: front
             context: ./front
             dockerfile: front/Dockerfile
-            build-args: ""
+            build-args: |
+              VITE_API_URL=${{ vars.VITE_API_URL }}
 
     steps:
       - uses: actions/checkout@v4

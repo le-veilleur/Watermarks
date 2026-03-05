@@ -1,5 +1,7 @@
 // useState pour les données réactives de l'UI, useRef pour les valeurs non-réactives (fichier, input DOM)
 import { useState, useRef } from 'react'
+
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
 import { formatBytes, formatMs, parsePipeline } from './utils.js'
 
 // Les 4 positions correspondent aux coins de l'image.
@@ -47,11 +49,11 @@ export default function App() {
     return new Promise((resolve, reject) => {
       const interval = setInterval(async () => { // toutes les 500ms — assez fréquent pour une bonne UX sans surcharger l'API
         try {
-          const res = await fetch(`http://localhost:4000/status/${jobId}`)
+          const res = await fetch(`${API_URL}/status/${jobId}`)
           const { status, url } = await res.json()
           if (status === 'done') {
             clearInterval(interval) // arrêter le polling dès que l'image est disponible
-            const imgRes = await fetch(`http://localhost:4000${url}`, {
+            const imgRes = await fetch(`${API_URL}${url}`, {
               headers: { Accept: 'image/webp,image/jpeg,*/*' }, // négocier WebP comme pour l'upload initial
             })
             const blob = await imgRes.blob()
@@ -89,7 +91,7 @@ export default function App() {
     setLoading(true)
     const t0 = performance.now() // démarrer le chrono côté client — inclut réseau + traitement
     try {
-      const res = await fetch('http://localhost:4000/upload', {
+      const res = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         // Accept: image/webp déclenche la négociation de format côté API (bestFormat) — pas de Content-Type car multipart géré par le browser
         headers: { Accept: 'image/webp,image/jpeg,*/*' },
