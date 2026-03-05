@@ -121,4 +121,9 @@ describe('parsePipeline', () => {
     const steps = parsePipeline(headers)
     expect(steps[0].ms).toBe('42.5')
   })
+
+  it('retourne null si tous les headers de timing sont absents', () => {
+    const headers = makeHeaders({ 'X-Cache': 'HIT' })
+    expect(parsePipeline(headers)).toBeNull()
+  })
 })
