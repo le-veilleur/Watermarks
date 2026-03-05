@@ -195,7 +195,7 @@ func TestApplyWatermarkDimensions(t *testing.T) {
 			img.Set(x, y, color.RGBA{100, 150, 200, 255})
 		}
 	}
-	result, err := applyWatermark(img, "Test Watermark", "bottom-right")
+	result, err := applyWatermark(img, "Test Watermark", "bottom-right", "")
 	if err != nil {
 		t.Fatalf("applyWatermark: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestApplyWatermarkAllPositions(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 1000, 800))
 	positions := []string{"top-left", "top-right", "bottom-left", "bottom-right"}
 	for _, pos := range positions {
-		_, err := applyWatermark(img, "NWS © 2026", pos)
+		_, err := applyWatermark(img, "NWS © 2026", pos, "")
 		if err != nil {
 			t.Errorf("applyWatermark(%q): %v", pos, err)
 		}
@@ -265,7 +265,7 @@ func TestEncodeToBufferQualityScaling(t *testing.T) {
 func TestWmParamsDefaults(t *testing.T) {
 	// Requête sans champs → valeurs par défaut
 	r := httptest.NewRequest(http.MethodPost, "/optimize", nil)
-	text, pos := wmParams(r)
+	text, pos, _ := wmParams(r)
 	if text == "" {
 		t.Error("wm_text vide : attendu la valeur par défaut")
 	}
@@ -279,7 +279,7 @@ func TestWmParamsCustom(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/optimize", body)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	text, pos := wmParams(r)
+	text, pos, _ := wmParams(r)
 	if text != "Hello World" {
 		t.Errorf("wm_text = %q, want %q", text, "Hello World")
 	}

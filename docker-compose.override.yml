@@ -1,16 +1,17 @@
 services:
   api:
-    environment:
-      - APP_ENV=dev
-
-  optimizer:
-    environment:
-      - APP_ENV=dev
+    networks:
+      - default
+    labels: []
 
   front:
-    build:
-      target: dev
-    volumes:
-      - ./front:/app
-      - /app/node_modules
+    ports:
+      - "127.0.0.1:5173:5173"
+    networks:
+      - default
+    labels: []
 
+networks:
+  proxy:
+    name: proxy
+    driver: bridge
