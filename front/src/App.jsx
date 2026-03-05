@@ -13,6 +13,16 @@ const POSITIONS = [
   { id: 'bottom-right', label: 'Bas droite',    dot: 'bottom-1 right-1' },
 ]
 
+// Couleurs prédéfinies + auto (vide = couleur adaptative selon la luminosité du fond)
+const COLOR_PRESETS = [
+  { id: '',        label: 'Auto',  style: { background: 'linear-gradient(135deg, #fff 50%, #222 50%)' } },
+  { id: '#ffffff', label: 'Blanc', style: { background: '#ffffff' } },
+  { id: '#000000', label: 'Noir',  style: { background: '#000000' } },
+  { id: '#ef4444', label: 'Rouge', style: { background: '#ef4444' } },
+  { id: '#facc15', label: 'Jaune', style: { background: '#facc15' } },
+  { id: '#3b82f6', label: 'Bleu',  style: { background: '#3b82f6' } },
+]
+
 export default function App() {
   const [preview, setPreview]       = useState(null)  // URL.createObjectURL du fichier local — affiché avant l'upload
   const [result, setResult]         = useState(null)  // URL.createObjectURL du blob retourné par l'API
@@ -23,6 +33,7 @@ export default function App() {
   const [sliderPos, setSliderPos]   = useState(50)    // position du curseur avant/après en % (0-100)
   const [wmText, setWmText]         = useState('NWS © 2026')    // texte du watermark envoyé comme champ wm_text
   const [wmPosition, setWmPosition] = useState('bottom-right')  // position envoyée comme champ wm_position
+  const [wmColor, setWmColor]       = useState('')               // couleur hex ou vide pour l'adaptatif
   const inputRef  = useRef(null)  // référence sur l'<input type="file"> caché pour déclencher le file picker au clic
   const fileRef   = useRef(null)  // stocke le File sélectionné sans re-render — évité via useState car pas affiché directement
 
@@ -85,8 +96,9 @@ export default function App() {
 
     const formData = new FormData()
     formData.append('image', file)          // champ attendu par r.FormFile("image") côté Go
-    formData.append('wm_text', wmText)      // texte du watermark
-    formData.append('wm_position', wmPosition) // position parmi top-left/top-right/bottom-left/bottom-right
+    formData.append('wm_text', wmText)
+    formData.append('wm_position', wmPosition)
+    formData.append('wm_color', wmColor)    // vide = couleur adaptative automatique
 
     setLoading(true)
     const t0 = performance.now() // démarrer le chrono côté client — inclut réseau + traitement
@@ -180,6 +192,46 @@ export default function App() {
             placeholder="NWS © 2026"
             className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
           />
+        </div>
+
+        {/* Couleur */}
+        <div>
+          <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">Couleur du watermark</label>
+
+          {/* Prévisualisation — fond sombre à gauche, clair à droite pour voir le contraste */}
+          <div className="mb-3 rounded-xl overflow-hidden flex h-10">
+            <div className="flex-1 bg-gray-900 flex items-center px-4">
+              <span style={wmColor ? { color: wmColor } : {}} className={`text-sm font-medium select-none ${!wmColor ? 'text-white' : ''}`}>
+                {wmText || 'NWS © 2026'}
+              </span>
+            </div>
+            <div className="flex-1 bg-gray-100 flex items-center px-4">
+              <span style={wmColor ? { color: wmColor } : {}} className={`text-sm font-medium select-none ${!wmColor ? 'text-gray-800' : ''}`}>
+                {wmText || 'NWS © 2026'}
+              </span>
+            </div>
+          </div>
+
+          {/* Swatches prédéfinis + color picker natif */}
+          <div className="flex gap-2 items-center flex-wrap">
+            {COLOR_PRESETS.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setWmColor(c.id)}
+                title={c.label}
+                style={c.style}
+                className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${wmColor === c.id ? 'border-blue-400 scale-110' : 'border-gray-600'}`}
+              />
+            ))}
+            {/* Sélecteur de couleur libre — affiche la couleur courante si personnalisée */}
+            <input
+              type="color"
+              value={wmColor || '#ffffff'}
+              onChange={(e) => setWmColor(e.target.value)}
+              title="Couleur personnalisée"
+              className={`w-7 h-7 rounded-full cursor-pointer border-2 bg-transparent p-0 ${!COLOR_PRESETS.some(c => c.id === wmColor) && wmColor ? 'border-blue-400 scale-110' : 'border-gray-600'}`}
+            />
+          </div>
         </div>
 
         {/* Position — 4 boutons visuels avec un point indicateur dans le coin correspondant */}

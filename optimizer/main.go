@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,13 +121,13 @@ func handleOptimize(w http.ResponseWriter, r *http.Request) {
 
 	// ── ④ Watermark ──────────────────────────────────────
 	t = time.Now()
-	wmText, wmPosition := wmParams(r) // extraire les 2 paramètres depuis le formulaire multipart
-	watermarked, err := applyWatermark(resized, wmText, wmPosition)
+	wmText, wmPosition, wmColorHex := wmParams(r) // extraire les 3 paramètres depuis le formulaire multipart
+	watermarked, err := applyWatermark(resized, wmText, wmPosition, wmColorHex)
 	if err != nil { // échec rare — police corrompue ou canvas non-initialisé
 		http.Error(w, "Erreur watermark", http.StatusInternalServerError)
 		return
 	}
-	logger.Info().Str("step", "watermark").Str("text", wmText).Str("position", wmPosition).Dur("duration", time.Since(t)).Msg("watermark appliqué")
+	logger.Info().Str("step", "watermark").Str("text", wmText).Str("position", wmPosition).Str("color", wmColorHex).Dur("duration", time.Since(t)).Msg("watermark appliqué")
 
 	// ── ⑤ Encodage ────────────────────────────────────────
 	t = time.Now()
@@ -180,7 +182,7 @@ func decodeImage(r *http.Request) (image.Image, string, error) {
 // wmParams lit les paramètres de watermark depuis le formulaire multipart.
 // Les valeurs par défaut garantissent un comportement cohérent même si le front
 // n'envoie pas ces champs (appels directs à l'API, retry RabbitMQ, etc.).
-func wmParams(r *http.Request) (text, position string) {
+func wmParams(r *http.Request) (text, position, colorHex string) {
 	text = r.FormValue("wm_text")
 	if text == "" {
 		text = "NWS © 2026" // fallback si le champ est absent ou vide
@@ -189,7 +191,24 @@ func wmParams(r *http.Request) (text, position string) {
 	if position == "" {
 		position = "bottom-right" // position la moins intrusive par défaut
 	}
+	colorHex = r.FormValue("wm_color") // vide = couleur adaptative automatique
 	return
+}
+
+// parseHexColor convertit une couleur hex (#rrggbb) en color.RGBA.
+// L'alpha est fixé à 210 pour correspondre à la transparence des couleurs adaptatives.
+func parseHexColor(s string) (color.RGBA, bool) {
+	s = strings.TrimPrefix(s, "#")
+	if len(s) != 6 {
+		return color.RGBA{}, false
+	}
+	r, err1 := strconv.ParseUint(s[0:2], 16, 8)
+	g, err2 := strconv.ParseUint(s[2:4], 16, 8)
+	b, err3 := strconv.ParseUint(s[4:6], 16, 8)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return color.RGBA{}, false
+	}
+	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 210}, true
 }
 
 // encodeToBuffer encode l'image en JPEG dans un buffer recyclé depuis le sync.Pool.
@@ -228,15 +247,20 @@ func adaptiveQuality(w, h int) int {
 // ── Watermark ─────────────────────────────────────────────────────────────────
 
 // applyWatermark dessine le texte sur une copie RGBA de l'image source.
-// La couleur du texte est choisie dynamiquement en fonction de la luminosité
-// du fond à l'endroit où sera positionné le watermark.
-func applyWatermark(img image.Image, text, position string) (image.Image, error) {
+// Si colorHex est fourni (#rrggbb), il est utilisé directement.
+// Sinon la couleur est choisie dynamiquement selon la luminosité du fond.
+func applyWatermark(img image.Image, text, position, colorHex string) (image.Image, error) {
 	canvas := image.NewRGBA(img.Bounds())                           // copie RGBA pour rendre l'image modifiable (img source peut être read-only)
 	draw.Draw(canvas, canvas.Bounds(), img, image.Point{}, draw.Src) // copier les pixels source sur le canvas avant de dessiner par-dessus
 
 	textWidth := font.MeasureString(fontFace, text).Ceil()                                         // largeur en pixels pour positionner le texte à droite sans déborder
 	wmX, wmY := wmCoords(textWidth, canvas.Bounds().Max.X, canvas.Bounds().Max.Y, position)        // coordonnées du coin bas-gauche du texte
-	wmColor := adaptiveColor(img, wmX, wmY)                                                        // blanc ou gris foncé selon la luminosité du fond
+
+	// Couleur explicite si fournie, sinon couleur adaptative selon la luminosité du fond
+	wmColor, ok := parseHexColor(colorHex)
+	if !ok {
+		wmColor = adaptiveColor(img, wmX, wmY)
+	}
 
 	d := &font.Drawer{
 		Dst:  canvas,

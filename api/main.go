@@ -64,6 +64,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	if wmPosition == "" {
 		wmPosition = "bottom-right" // position la moins intrusive par défaut
 	}
+	wmColor := r.FormValue("wm_color") // vide = couleur adaptative automatique
 	// Négociation de format : WebP si le navigateur le supporte (~30% plus léger), JPEG sinon.
 	wmFormat := bestFormat(r)
 	logger.Info().Str("step", "format").Str("accept", r.Header.Get("Accept")).Str("chosen", wmFormat).Msg("négociation format")
@@ -75,7 +76,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tOptimizer := time.Now()
-	result, err := sendToOptimizer(optimizerURL, header.Filename, data, wmText, wmPosition, wmFormat)
+	result, err := sendToOptimizer(optimizerURL, header.Filename, data, wmText, wmPosition, wmFormat, wmColor)
 	if err != nil {
 		logger.Error().Str("step", "optimizer").Err(err).Msg("optimizer KO")
 		http.Error(w, "Microservice indisponible", http.StatusBadGateway)
@@ -121,7 +122,7 @@ func detectContentType(data []byte) string {
 
 // sendToOptimizer envoie l'image à l'optimizer via HTTP multipart et retourne le résultat.
 // Utilise io.Pipe pour streamer le multipart sans charger deux fois l'image en mémoire.
-func sendToOptimizer(optimizerURL, filename string, data []byte, wmText, wmPosition, wmFormat string) ([]byte, error) {
+func sendToOptimizer(optimizerURL, filename string, data []byte, wmText, wmPosition, wmFormat, wmColor string) ([]byte, error) {
 	pr, pw := io.Pipe()           // tuyau synchrone : la goroutine écrit pendant que Post lit
 	mw := multipart.NewWriter(pw)
 
@@ -135,6 +136,7 @@ func sendToOptimizer(optimizerURL, filename string, data []byte, wmText, wmPosit
 		mw.WriteField("wm_text", wmText)
 		mw.WriteField("wm_position", wmPosition)
 		mw.WriteField("wm_format", wmFormat)
+		mw.WriteField("wm_color", wmColor)
 		mw.Close() // finalise le boundary multipart
 		pw.Close() // signale la fin du stream au lecteur (httpClient.Post)
 	}()
