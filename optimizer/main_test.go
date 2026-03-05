@@ -265,12 +265,15 @@ func TestEncodeToBufferQualityScaling(t *testing.T) {
 func TestWmParamsDefaults(t *testing.T) {
 	// Requête sans champs → valeurs par défaut
 	r := httptest.NewRequest(http.MethodPost, "/optimize", nil)
-	text, pos := wmParams(r)
+	text, pos, colorHex := wmParams(r)
 	if text == "" {
 		t.Error("wm_text vide : attendu la valeur par défaut")
 	}
 	if pos == "" {
 		t.Error("wm_position vide : attendu la valeur par défaut")
+	}
+	if colorHex == "" {
+		t.Error("wm_color vide : attendu la valeur par défaut")
 	}
 }
 
@@ -279,7 +282,7 @@ func TestWmParamsCustom(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/optimize", body)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	text, pos := wmParams(r)
+	text, pos, _ := wmParams(r)
 	if text != "Hello World" {
 		t.Errorf("wm_text = %q, want %q", text, "Hello World")
 	}
