@@ -45,7 +45,8 @@ jobs:
           - service: front
             context: ./front
             dockerfile: front/Dockerfile
-            build-args: ""
+            build-args: |
+              VITE_API_URL=${{ vars.VITE_API_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -123,29 +124,7 @@ jobs:
     needs: promote
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: SSH → test connexion
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            echo "✅ SSH OK — $(whoami)@$(hostname)"
-            docker --version
-            docker compose version
-
-      - name: SCP → copie docker-compose.yml
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: docker-compose.yml
-          target: ~/Watermarks/
-
-      - name: SSH → pull & restart
+      - name: SSH → deploy
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -153,6 +132,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/Watermarks
+
+            # Récupère le docker-compose.yml à jour depuis le repo
+            git pull origin main
 
             # Les credentials GHCR sont stockés dans ~/.docker/config.json
             # (docker login ghcr.io fait une seule fois manuellement sur le VPS)
