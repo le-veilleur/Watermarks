@@ -19,7 +19,7 @@ PASS=$(openssl rand -base64 32)
 printf 'default_user = watermark\ndefault_pass = %s\n' "$PASS" > secrets/rabbitmq.conf
 
 # Permissions — lecture/écriture uniquement pour l'utilisateur courant
-chmod 600 secrets/*
+chmod 600 secrets/minio_user.txt secrets/minio_password.txt secrets/rabbitmq.conf
 ```
 
 ---
@@ -93,3 +93,32 @@ docker compose restart api minio
 Si les fichiers sont supprimés ou corrompus, relancer la section **Création** ci-dessus.
 Les données MinIO (volume `minio_data`) sont conservées — seul le mot de passe change.
 Il faudra alors reconfigurer le mot de passe dans MinIO via la console (`http://VPS:9001`).
+
+---
+
+## Dashboard Traefik (Basic Auth Nginx)
+
+Le dashboard `traefik.maxime-louis.com` est protégé par Nginx via `/etc/nginx/.htpasswd`.
+
+```bash
+# Voir le(s) utilisateur(s) existants
+cat /etc/nginx/.htpasswd
+
+# Changer le mot de passe d'un utilisateur existant
+sudo htpasswd /etc/nginx/.htpasswd <utilisateur_existant>
+
+# Ajouter un nouvel utilisateur
+sudo htpasswd /etc/nginx/.htpasswd <nouvel_utilisateur>
+
+# Générer un hash manuellement avec openssl (sans htpasswd)
+openssl passwd -apr1 "mon_mot_de_passe"
+# Copier le résultat dans /etc/nginx/.htpasswd sous la forme :
+# username:$apr1$...
+```
+
+Le fichier `.htpasswd` a le format suivant :
+```
+username:$apr1$xxxx$hashedpassword
+```
+
+> Nginx relit le fichier à chaque requête — pas besoin de redémarrer.

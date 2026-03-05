@@ -8,7 +8,7 @@ services:
   redis:
     image: redis:8.6.1-alpine3.23
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     # redis-server --save "" --appendonly no
     # désactive la persistance sur disque → Redis utilisé uniquement comme cache RAM
     command: redis-server --save "" --appendonly no
@@ -18,13 +18,13 @@ services:
     environment:
       - APP_ENV=prod
     ports:
-      - "3002:3001"
+      - "127.0.0.1:3002:3001"
 
   rabbitmq:
     image: rabbitmq:4.2.4-alpine
     ports:
-      - "5672:5672"    # AMQP
-      - "15672:15672"  # Management UI
+      - "127.0.0.1:5672:5672"    # AMQP
+      - "127.0.0.1:15672:15672"  # Management UI
     volumes:
       # rabbitmq.conf est dans secrets/ (gitignorés) — contient default_user et default_pass
       - ./secrets/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
@@ -36,8 +36,6 @@ services:
 
   api:
     image: ghcr.io/le-veilleur/watermark-api:latest
-    ports:
-      - "4000:4000"
     environment:
       - APP_ENV=prod
       - OPTIMIZER_URL=http://optimizer:3001
@@ -46,12 +44,20 @@ services:
     secrets:
       - minio_user
       - minio_password
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watermark-api.rule=Host(`api-watermark.maxime-louis.com`)"
+      - "traefik.http.routers.watermark-api.entrypoints=web"
+      - "traefik.http.services.watermark-api.loadbalancer.server.port=4000"
 
   minio:
     image: minio/minio:latest
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       # _FILE : MinIO lit le contenu du fichier monté par Docker secrets
       - MINIO_ROOT_USER_FILE=/run/secrets/minio_user
@@ -65,10 +71,20 @@ services:
 
   front:
     image: ghcr.io/le-veilleur/watermark-front:latest
-    ports:
-      - "5173:5173"
     depends_on:
       - api
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watermark-front.rule=Host(`watermark.maxime-louis.com`)"
+      - "traefik.http.routers.watermark-front.entrypoints=web"
+      - "traefik.http.services.watermark-front.loadbalancer.server.port=5173"
 
 volumes:
   minio_data:
+
+networks:
+  proxy:
+    external: true
