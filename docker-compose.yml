@@ -49,6 +49,7 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.watermark-api.rule=Host(`api-watermark.maxime-louis.com`)"
       - "traefik.http.routers.watermark-api.entrypoints=web"
       - "traefik.http.services.watermark-api.loadbalancer.server.port=4000"
@@ -78,6 +79,7 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.watermark-front.rule=Host(`watermark.maxime-louis.com`)"
       - "traefik.http.routers.watermark-front.entrypoints=web"
       - "traefik.http.services.watermark-front.loadbalancer.server.port=5173"
