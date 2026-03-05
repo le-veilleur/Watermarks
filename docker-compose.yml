@@ -14,18 +14,9 @@ services:
     command: redis-server --save "" --appendonly no
 
   optimizer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: prod
-      args:
-        SERVICE_DIR: optimizer
-        CMD_PATH: /usr/local/bin/optimizer
+    image: ghcr.io/le-veilleur/watermark-optimizer:latest
     environment:
       - APP_ENV=prod
-    volumes:
-      # monté en permanence — en prod le binaire tourne depuis /usr/local/bin/, sans impact
-      - ./optimizer:/usr/src/optimizer
     ports:
       - "3001:3001"
 
@@ -44,16 +35,7 @@ services:
       retries: 5
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: prod
-      args:
-        SERVICE_DIR: api
-        CMD_PATH: /usr/local/bin/api
-    volumes:
-      # monté en permanence — en prod le binaire tourne depuis /usr/local/bin/, sans impact
-      - ./api:/usr/src/api
+    image: ghcr.io/le-veilleur/watermark-api:latest
     ports:
       - "4000:4000"
     environment:
@@ -82,9 +64,7 @@ services:
       - minio_data:/data
 
   front:
-    build:
-      context: ./front
-      target: prod
+    image: ghcr.io/le-veilleur/watermark-front:latest
     ports:
       - "5173:5173"
     depends_on:
